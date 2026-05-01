@@ -1,0 +1,35 @@
+{
+  "name": "ecom-buddy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ecom Buddy — complete e-commerce operating system for Pakistani sellers",
+  "workspaces": [
+    "backend",
+    "reseller-portal",
+    "admin-panel",
+    "tracking-page"
+  ],
+  "scripts": {
+    "dev:backend": "npm --workspace backend run dev",
+    "dev:reseller": "npm --workspace reseller-portal run dev",
+    "dev:admin": "npm --workspace admin-panel run dev",
+    "dev:tracking": "npm --workspace tracking-page run dev",
+    "build:backend": "npm --workspace backend run build",
+    "build:reseller": "npm --workspace reseller-portal run build",
+    "build:admin": "npm --workspace admin-panel run build",
+    "build:tracking": "npm --workspace tracking-page run build",
+    "build": "npm run build:backend && npm run build:reseller && npm run build:admin && npm run build:tracking",
+    "typecheck": "npm --workspace backend run typecheck && npm --workspace reseller-portal run typecheck && npm --workspace admin-panel run typecheck && npm --workspace tracking-page run typecheck",
+    "db:migrate": "npm --workspace backend run db:migrate",
+    "db:generate": "npm --workspace backend run db:generate",
+    "db:seed": "npm --workspace backend run db:seed",
+    "db:reset": "npm --workspace backend run db:reset",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

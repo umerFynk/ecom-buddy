@@ -1,0 +1,1701 @@
+// Ecom Buddy — full Prisma schema (Part 26 of BLUEPRINT.md).
+// Every reseller-owned row carries tenantId. Order statuses are stored as
+// strings (not enums) because admins manage them via Status Manager UI.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Plan {
+  starter
+  growth
+  scale
+}
+
+enum ResellerRole {
+  owner
+  manager
+  cs_agent
+  viewer
+}
+
+enum AdminRole {
+  super_admin
+  account_manager
+  cs_agent
+  warehouse
+}
+
+enum CourierType {
+  postex
+  leopards
+  trax
+  blueex
+  mnx
+  callcourier
+}
+
+enum DispatchMode {
+  self
+  ecombuddy_3pl
+  ecombuddy_courier_account
+}
+
+enum ConfirmationMode {
+  off
+  manual
+  ai_engine
+}
+
+enum OrderSource {
+  shopify
+  shopify_poll
+  csv_import
+  manual
+  api
+}
+
+enum PaymentStatus {
+  cod
+  prepaid
+}
+
+enum CodRemittanceStatus {
+  pending
+  paid
+  short
+  unknown
+}
+
+enum BlacklistLevel {
+  clean
+  watch
+  high_risk
+  blacklisted
+  global
+}
+
+enum ApiKeyScope {
+  read_only
+  orders
+  full_access
+}
+
+enum WaSystem {
+  customer
+  b2b
+  shared
+}
+
+enum WaDirection {
+  inbound
+  outbound
+}
+
+enum WaMessageStatus {
+  queued
+  sent
+  delivered
+  read
+  failed
+}
+
+enum CsConversationStatus {
+  open
+  ai_handling
+  cs_handling
+  resolved
+}
+
+enum InventoryMovementType {
+  inbound
+  outbound
+  allocation
+  deallocation
+  adjustment
+  rto_restock
+  damage
+  write_off
+}
+
+enum TicketStatus {
+  open
+  in_progress
+  waiting_on_reseller
+  resolved
+  closed
+}
+
+enum TicketPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum BroadcastAudienceType {
+  all
+  segment
+  manual
+}
+
+enum InboundStatus {
+  pending
+  in_transit
+  arrived
+  receiving
+  received
+  discrepancy
+  cancelled
+}
+
+enum PickTaskStatus {
+  pending
+  in_progress
+  completed
+  partial
+  cancelled
+}
+
+enum PackTaskStatus {
+  pending
+  in_progress
+  packed
+  cancelled
+}
+
+enum RtoCondition {
+  good
+  damaged
+  unsellable
+}
+
+enum NotificationChannel {
+  whatsapp
+  email
+  inapp
+}
+
+enum StatusType {
+  active
+  failure
+  cancellation
+  special
+  terminal
+}
+
+enum RevenueRecognitionMode {
+  cash_basis
+  accrual_delivered
+  accrual_dispatched
+}
+
+enum AppealStatus {
+  pending
+  approved
+  rejected
+}
+
+// ===========================================================
+// AUTH & TENANTS
+// ===========================================================
+
+model Tenant {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  prefix        String   @unique // EB-{PREFIX}-... in SKUs
+  plan          Plan     @default(starter)
+  trialEndsAt   DateTime? @map("trial_ends_at")
+  settings      Json     @default("{}") @map("settings_json")
+  isActive      Boolean  @default(true) @map("is_active")
+  threePlEnabled Boolean @default(false) @map("three_pl_enabled")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  stores                  Store[]
+  users                   User[]
+  apiKeys                 ApiKey[]
+  products                Product[]
+  inventoryLevels         InventoryLevel[]
+  customers               Customer[]
+  orders                  Order[]
+  courierConfigs          CourierConfig[]
+  shipments               Shipment[]
+  waMessages              WaMessage[]
+  waTemplates             WaTemplate[]
+  campaigns               Campaign[]
+  csConversations         CsConversation[]
+  financials              Financial[]
+  courierStatements       CourierStatement[]
+  remittances             Remittance[]
+  loadSheets              LoadSheet[]
+  shipperAdvice           ShipperAdvice[]
+  picklists               Picklist[]
+  riskEngineConfig        RiskEngineConfig?
+  riskCustomRules         RiskCustomRule[]
+  automationRules         AutomationRule[]
+  notificationSettings    NotificationSetting[]
+  notifications           Notification[]
+  supportTickets          SupportTicket[]
+  aiConversations         AiConversation[]
+  inboundShipments        InboundShipment[]
+  blacklistLogs           BlacklistLog[]
+  blacklistOverrides      BlacklistOverride[]
+  oosEvents               OosEvent[]
+  b2bConversations        B2bConversation[]
+
+  @@index([plan])
+  @@index([isActive])
+  @@map("tenants")
+}
+
+model Store {
+  id                String           @id @default(cuid())
+  tenantId          String           @map("tenant_id")
+  name              String
+  shopifyDomain     String?          @map("shopify_domain") // e.g. shop.myshopify.com
+  shopifyToken      String?          @map("shopify_token") // encrypted
+  shopifyScope      String?          @map("shopify_scope")
+  shopifyInstalledAt DateTime?       @map("shopify_installed_at")
+  fieldMapping      Json             @default("{}") @map("field_mapping_json")
+  dispatchMode      DispatchMode     @default(self) @map("dispatch_mode")
+  confirmationMode  ConfirmationMode @default(manual) @map("confirmation_mode")
+  wmsEnabled        Boolean          @default(false) @map("wms_enabled")
+  brandColor        String?          @map("brand_color")
+  logoUrl           String?          @map("logo_url")
+  customDomain      String?          @map("custom_domain")
+  hideEbBranding    Boolean          @default(false) @map("hide_eb_branding")
+  reviewLink        String?          @map("review_link")
+  timezone          String           @default("Asia/Karachi")
+  businessHoursStart String?         @map("business_hours_start")
+  businessHoursEnd   String?         @map("business_hours_end")
+  isActive          Boolean          @default(true) @map("is_active")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products        Product[]
+  inventoryLevels InventoryLevel[]
+  orders          Order[]
+  oosEvents       OosEvent[]
+
+  @@unique([tenantId, shopifyDomain])
+  @@index([tenantId])
+  @@map("stores")
+}
+
+model User {
+  id            String       @id @default(cuid())
+  tenantId      String       @map("tenant_id")
+  email         String
+  passwordHash  String       @map("password_hash")
+  name          String?
+  role          ResellerRole @default(viewer)
+  lastLoginAt   DateTime?    @map("last_login_at")
+  isActive      Boolean      @default(true) @map("is_active")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  csMessagesSent CsMessage[]
+  ticketsAssigned SupportTicket[] @relation("TicketAssignedReseller")
+
+  @@unique([tenantId, email])
+  @@index([tenantId, role])
+  @@map("users")
+}
+
+model ApiKey {
+  id          String      @id @default(cuid())
+  tenantId    String      @map("tenant_id")
+  name        String
+  prefix      String      @unique // first 8 chars shown to user
+  keyHash     String      @unique @map("key_hash")
+  scope       ApiKeyScope @default(read_only)
+  rateLimit   Int         @default(1000) @map("rate_limit") // per hour
+  lastUsedAt  DateTime?   @map("last_used_at")
+  expiresAt   DateTime?   @map("expires_at")
+  isActive    Boolean     @default(true) @map("is_active")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("api_keys")
+}
+
+model AdminUser {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  passwordHash  String     @map("password_hash")
+  name          String?
+  role          AdminRole  @default(cs_agent)
+  twoFactorSecret String?  @map("2fa_secret")
+  isActive      Boolean    @default(true) @map("is_active")
+  lastLoginAt   DateTime?  @map("last_login_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  ticketsAssigned   SupportTicket[]    @relation("TicketAssignedAdmin")
+  b2bConversations  B2bConversation[]
+  internalChannels  InternalChannel[]
+  internalDmsSent   InternalDirectMessage[] @relation("DmFrom")
+  internalDmsRcvd   InternalDirectMessage[] @relation("DmTo")
+  internalMessages  InternalMessage[]
+  channelMembers    InternalChannelMember[]
+  csConversationsAssigned CsConversation[]
+
+  @@index([role])
+  @@map("admin_users")
+}
+
+// ===========================================================
+// PRODUCTS & SKUs
+// ===========================================================
+
+model Product {
+  id               String   @id @default(cuid())
+  tenantId         String   @map("tenant_id")
+  storeId          String   @map("store_id")
+  shopifyProductId String?  @map("shopify_product_id")
+  title            String
+  cogs             Decimal? @db.Decimal(12, 2)
+  imageUrl         String?  @map("image_url")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store    Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  variants ProductVariant[]
+
+  @@unique([tenantId, storeId, shopifyProductId])
+  @@index([tenantId])
+  @@map("products")
+}
+
+model ProductVariant {
+  id                String   @id @default(cuid())
+  productId         String   @map("product_id")
+  sku               String
+  shopifyVariantId  String?  @map("shopify_variant_id")
+  shopifySku        String?  @map("shopify_sku") // SKU originally from Shopify before our gen
+  title             String?
+  variantTitle      String?  @map("variant_title")
+  price             Decimal? @db.Decimal(12, 2)
+  cogs              Decimal? @db.Decimal(12, 2)
+  weightGrams       Int?     @map("weight_grams")
+  pushedToShopifyAt DateTime? @map("pushed_to_shopify_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  product           Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventoryLevels   InventoryLevel[]
+  inventoryMovements InventoryMovement[]
+  orderItems        OrderItem[]
+  inboundItems      InboundItem[]
+  pickTaskItems     PickTaskItem[]
+  skuLocations      SkuLocation[]
+  picklistItems     PicklistItem[]
+  oosEvents         OosEvent[]
+
+  @@index([sku])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model InventoryLevel {
+  id                  String   @id @default(cuid())
+  tenantId            String   @map("tenant_id")
+  variantId           String   @map("variant_id")
+  storeId             String   @map("store_id")
+  totalStock          Int      @default(0) @map("total_stock")
+  allocatedStock      Int      @default(0) @map("allocated_stock")
+  lowStockThreshold   Int      @default(5) @map("low_stock_threshold")
+  lastSyncedAt        DateTime? @map("last_synced_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  store   Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([variantId, storeId])
+  @@index([tenantId])
+  @@map("inventory_levels")
+}
+
+model InventoryMovement {
+  id        String                @id @default(cuid())
+  variantId String                @map("variant_id")
+  type      InventoryMovementType
+  quantity  Int
+  orderId   String?               @map("order_id")
+  reason    String?
+  batchId   String?               @map("batch_id")
+  createdAt DateTime              @default(now()) @map("created_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  order   Order?         @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([variantId, createdAt])
+  @@index([orderId])
+  @@map("inventory_movements")
+}
+
+// ===========================================================
+// CUSTOMERS
+// ===========================================================
+
+model Customer {
+  id                   String         @id @default(cuid())
+  tenantId             String         @map("tenant_id")
+  phoneNormalized      String         @map("phone_normalized")
+  name                 String?
+  email                String?
+  totalOrders          Int            @default(0) @map("total_orders")
+  deliveredCount       Int            @default(0) @map("delivered_count")
+  returnedCount        Int            @default(0) @map("returned_count")
+  cancelledCount       Int            @default(0) @map("cancelled_count")
+  deliverySuccessRate  Decimal?       @db.Decimal(5, 2) @map("delivery_success_rate")
+  blacklistLevel       BlacklistLevel @default(clean) @map("blacklist_level")
+  isVip                Boolean        @default(false) @map("is_vip")
+  tags                 String[]
+  notes                String?
+  lastOrderAt          DateTime?      @map("last_order_at")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders   Order[]
+  blacklistLogs    BlacklistLog[]
+  blacklistOverrides BlacklistOverride[]
+  blacklistAppeals BlacklistAppeal[]
+  csConversations  CsConversation[]
+  campaignRecipients CampaignRecipient[]
+
+  @@unique([tenantId, phoneNormalized])
+  @@index([phoneNormalized]) // global lookup for blacklist
+  @@map("customers")
+}
+
+model BlacklistLog {
+  id         String         @id @default(cuid())
+  customerId String         @map("customer_id")
+  tenantId   String         @map("tenant_id")
+  level      BlacklistLevel
+  reason     String?
+  actorId    String?        @map("actor_id")
+  actorType  String         @default("system") @map("actor_type") // system | reseller_user | admin
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([tenantId])
+  @@map("blacklist_log")
+}
+
+model BlacklistOverride {
+  id         String   @id @default(cuid())
+  customerId String   @map("customer_id")
+  tenantId   String   @map("tenant_id")
+  orderId    String?  @map("order_id")
+  reason     String
+  actorId    String   @map("actor_id")
+  outcome    String?  // delivered | rto | pending
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order    Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([tenantId])
+  @@map("blacklist_overrides")
+}
+
+model BlacklistAppeal {
+  id                String       @id @default(cuid())
+  customerId        String       @map("customer_id")
+  appellantTenantId String       @map("appellant_tenant_id")
+  reason            String
+  evidenceUrl       String?      @map("evidence_url")
+  status            AppealStatus @default(pending)
+  adminDecision     String?      @map("admin_decision")
+  adminId           String?      @map("admin_id")
+  resolvedAt        DateTime?    @map("resolved_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([customerId])
+  @@map("blacklist_appeals")
+}
+
+// ===========================================================
+// ORDERS
+// ===========================================================
+
+model Order {
+  id                    String              @id @default(cuid())
+  tenantId              String              @map("tenant_id")
+  storeId               String              @map("store_id")
+  source                OrderSource         @default(manual)
+  shopifyOrderId        String?             @map("shopify_order_id")
+  shopifyOrderNumber    String?             @map("shopify_order_number")
+  externalRef           String?             @map("external_ref")
+  status                String              @default("new")
+  confirmationStatus    String?             @map("confirmation_status") // pending | confirmed | otp_sent | refused | cs_review
+  riskScore             Int?                @map("risk_score")
+  riskFlags             String[]            @map("risk_flags")
+  riskBreakdown         Json?               @map("risk_breakdown")
+  customerId            String?             @map("customer_id")
+  customerName          String              @map("customer_name")
+  phone                 String
+  alternatePhone        String?             @map("alternate_phone")
+  email                 String?
+  city                  String
+  province              String?
+  addressLine1          String              @map("address_line_1")
+  addressLine2          String?             @map("address_line_2")
+  postalCode            String?             @map("postal_code")
+  country               String              @default("PK")
+  amount                Decimal             @db.Decimal(12, 2)
+  currency              String              @default("PKR")
+  discount              Decimal?            @db.Decimal(12, 2)
+  shippingFee           Decimal?            @db.Decimal(12, 2) @map("shipping_fee")
+  paymentStatus         PaymentStatus       @default(cod) @map("payment_status")
+  weightGrams           Int?                @map("weight_grams")
+  itemCount             Int                 @default(0) @map("item_count")
+  orderNote             String?             @map("order_note")
+  metadata              Json                @default("{}")
+  courierType           CourierType?        @map("courier_type")
+  courierConfigId       String?             @map("courier_config_id")
+  trackingNumber        String?             @map("tracking_number")
+  labelUrl              String?             @map("label_url")
+  confirmedAt           DateTime?           @map("confirmed_at")
+  dispatchedAt          DateTime?           @map("dispatched_at")
+  deliveredAt           DateTime?           @map("delivered_at")
+  rtoAt                 DateTime?           @map("rto_at")
+  cancelledAt           DateTime?           @map("cancelled_at")
+  cancelReason          String?             @map("cancel_reason")
+  codRemittanceStatus   CodRemittanceStatus @default(pending) @map("cod_remittance_status")
+  codAmountExpected     Decimal?            @db.Decimal(12, 2) @map("cod_amount_expected")
+  codAmountReceived     Decimal?            @db.Decimal(12, 2) @map("cod_amount_received")
+  codPaidAt             DateTime?           @map("cod_paid_at")
+  isOnHold              Boolean             @default(false) @map("is_on_hold")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store        Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer     Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  courierConfig CourierConfig?   @relation(fields: [courierConfigId], references: [id], onDelete: SetNull)
+  items        OrderItem[]
+  events       OrderEvent[]
+  metadataRows OrderMetadata[]
+  confirmationLogs ConfirmationLog[]
+  shipments    Shipment[]
+  financial    Financial?
+  inventoryMovements InventoryMovement[]
+  packingSlips PackingSlip[]
+  loadSheetOrders LoadSheetOrder[]
+  blacklistOverrides BlacklistOverride[]
+  pickTasks    PickTask[]
+  packTasks    PackTask[]
+  rtoReceipts  RtoWarehouseReceipt[]
+  notifications Notification[]
+  remittanceRows RemittanceRow[]
+  courierStatementRows CourierStatementRow[]
+  supportTickets SupportTicket[]
+
+  @@unique([tenantId, storeId, shopifyOrderId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([phone])
+  @@index([trackingNumber])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           String   @id @default(cuid())
+  orderId      String   @map("order_id")
+  variantId    String?  @map("variant_id")
+  title        String
+  sku          String?
+  quantity     Int
+  allocatedQty Int      @default(0) @map("allocated_qty")
+  price        Decimal  @db.Decimal(12, 2)
+  cogs         Decimal? @db.Decimal(12, 2)
+
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// IMMUTABLE — never delete rows. Append-only audit log of every status change.
+model OrderEvent {
+  id        String   @id @default(cuid())
+  orderId   String   @map("order_id")
+  fromStatus String? @map("from_status")
+  toStatus  String   @map("to_status")
+  actorType String   @map("actor_type") // system | reseller_user | admin | courier_webhook | shopify
+  actorId   String?  @map("actor_id")
+  note      String?
+  metadata  Json?    @map("metadata_json")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("order_events")
+}
+
+model OrderMetadata {
+  id      String @id @default(cuid())
+  orderId String @map("order_id")
+  key     String
+  value   String
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, key])
+  @@index([orderId])
+  @@map("order_metadata")
+}
+
+// ===========================================================
+// CONFIRMATION
+// ===========================================================
+
+model ConfirmationLog {
+  id           String    @id @default(cuid())
+  orderId      String    @map("order_id")
+  pathUsed     String    @map("path_used") // A | B | C | D | E | ai_engine
+  modeUsed     ConfirmationMode @map("mode_used")
+  waMessageId  String?   @map("wa_message_id")
+  sentAt       DateTime? @map("sent_at")
+  repliedAt    DateTime? @map("replied_at")
+  replyText    String?   @map("reply_text")
+  outcome      String?   // confirmed | refused | timeout | cancelled | hold | shipped_anyway
+  otpCode      String?   @map("otp_code")
+  otpExpiresAt DateTime? @map("otp_expires_at")
+  attempts     Int       @default(0)
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("confirmation_logs")
+}
+
+// ===========================================================
+// COURIERS
+// ===========================================================
+
+model CourierConfig {
+  id                String      @id @default(cuid())
+  tenantId          String      @map("tenant_id")
+  courierType       CourierType @map("courier_type")
+  accountName       String?     @map("account_name")
+  accountNo         String?     @map("account_no")
+  apiKeyEncrypted   String      @map("api_key_encrypted")
+  apiPasswordEncrypted String?  @map("api_password_encrypted")
+  pickupAddress     Json?       @map("pickup_address")
+  priority          Int         @default(100)
+  successRate7d     Decimal?    @db.Decimal(5, 2) @map("success_rate_7d")
+  cityOverrides     Json        @default("{}") @map("city_overrides_json")
+  isActive          Boolean     @default(true) @map("is_active")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  shipments Shipment[]
+  orders    Order[]
+  loadSheets LoadSheet[]
+
+  @@unique([tenantId, courierType, accountNo])
+  @@index([tenantId])
+  @@map("courier_configs")
+}
+
+model CourierStatusMap {
+  id            String      @id @default(cuid())
+  courierType   CourierType @map("courier_type")
+  rawStatus     String      @map("raw_status")
+  masterStatus  String      @map("master_status")
+  mappedBy      String?     @map("mapped_by") // admin user id
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@unique([courierType, rawStatus])
+  @@map("courier_status_maps")
+}
+
+model CourierStatusUnmapped {
+  id          String      @id @default(cuid())
+  courierType CourierType @map("courier_type")
+  rawStatus   String      @map("raw_status")
+  orderId     String?     @map("order_id")
+  receivedAt  DateTime    @default(now()) @map("received_at")
+  resolvedAt  DateTime?   @map("resolved_at")
+
+  @@index([courierType, rawStatus])
+  @@map("courier_status_unmapped")
+}
+
+model Shipment {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  orderId         String   @map("order_id")
+  courierConfigId String   @map("courier_config_id")
+  trackingNumber  String   @map("tracking_number")
+  labelUrl        String?  @map("label_url")
+  bookedAt        DateTime @default(now()) @map("booked_at")
+  currentStatus   String   @map("current_status")
+  statusHistory   Json     @default("[]") @map("status_history_json")
+  weightKg        Decimal? @db.Decimal(10, 3) @map("weight_kg")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order        Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  courierConfig CourierConfig @relation(fields: [courierConfigId], references: [id])
+  loadSheetOrders LoadSheetOrder[]
+
+  @@unique([trackingNumber])
+  @@index([tenantId, currentStatus])
+  @@index([orderId])
+  @@map("shipments")
+}
+
+// ===========================================================
+// WHATSAPP
+// ===========================================================
+
+model WaMessage {
+  id           String          @id @default(cuid())
+  tenantId     String          @map("tenant_id")
+  system       WaSystem        @default(customer)
+  phone        String
+  direction    WaDirection
+  type         String          // template | text | media
+  templateName String?         @map("template_name")
+  content      String?
+  waMessageId  String?         @unique @map("wa_message_id")
+  status       WaMessageStatus @default(queued)
+  cost         Decimal?        @db.Decimal(10, 4)
+  errorReason  String?         @map("error_reason")
+  sentAt       DateTime?       @map("sent_at")
+  deliveredAt  DateTime?       @map("delivered_at")
+  readAt       DateTime?       @map("read_at")
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, phone])
+  @@index([tenantId, system, createdAt])
+  @@map("wa_messages")
+}
+
+model WaTemplate {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  name            String
+  category        String   // marketing | utility | authentication
+  language        String   @default("en")
+  content         String
+  metaStatus      String?  @map("meta_status") // pending | approved | rejected
+  metaTemplateId  String?  @map("meta_template_id")
+  variablesSchema Json?    @map("variables_schema")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  campaigns Campaign[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("wa_templates")
+}
+
+model Campaign {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  name            String
+  audienceFilter  Json     @default("{}") @map("audience_filter_json")
+  templateId      String?  @map("template_id")
+  scheduledAt     DateTime? @map("scheduled_at")
+  sentAt          DateTime? @map("sent_at")
+  sentCount       Int      @default(0) @map("sent_count")
+  deliveredCount  Int      @default(0) @map("delivered_count")
+  openedCount     Int      @default(0) @map("opened_count")
+  status          String   @default("draft") // draft | scheduled | sending | sent | failed
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  template   WaTemplate?         @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  recipients CampaignRecipient[]
+
+  @@index([tenantId, status])
+  @@map("campaigns")
+}
+
+model CampaignRecipient {
+  id          String    @id @default(cuid())
+  campaignId  String    @map("campaign_id")
+  customerId  String?   @map("customer_id")
+  phone       String
+  status      String    @default("pending") // pending | sent | delivered | failed
+  sentAt      DateTime? @map("sent_at")
+  deliveredAt DateTime? @map("delivered_at")
+
+  campaign Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
+  @@index([phone])
+  @@map("campaign_recipients")
+}
+
+// ===========================================================
+// CS INBOX
+// ===========================================================
+
+model CsConversation {
+  id                 String                @id @default(cuid())
+  tenantId           String                @map("tenant_id")
+  customerId         String?               @map("customer_id")
+  phone              String
+  status             CsConversationStatus  @default(open)
+  assignedToAdminId  String?               @map("assigned_to_admin_id")
+  isAiHandling       Boolean               @default(true) @map("is_ai_handling")
+  lastMessageAt      DateTime              @default(now()) @map("last_message_at")
+  unreadCount        Int                   @default(0) @map("unread_count")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer   Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  assignedTo AdminUser? @relation(fields: [assignedToAdminId], references: [id], onDelete: SetNull)
+  messages   CsMessage[]
+
+  @@index([tenantId, status])
+  @@index([phone])
+  @@map("cs_conversations")
+}
+
+model CsMessage {
+  id              String      @id @default(cuid())
+  conversationId  String      @map("conversation_id")
+  direction       WaDirection
+  content         String
+  waMessageId     String?     @map("wa_message_id")
+  sentByUserId    String?     @map("sent_by_user_id")
+  isAi            Boolean     @default(false) @map("is_ai")
+  sentAt          DateTime    @default(now()) @map("sent_at")
+  readAt          DateTime?   @map("read_at")
+
+  conversation CsConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sentByUser   User?          @relation(fields: [sentByUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, sentAt])
+  @@map("cs_messages")
+}
+
+// ===========================================================
+// FINANCIALS
+// ===========================================================
+
+model Financial {
+  id                 String                  @id @default(cuid())
+  tenantId           String                  @map("tenant_id")
+  orderId            String                  @unique @map("order_id")
+  revenue            Decimal                 @db.Decimal(12, 2)
+  cogs               Decimal                 @db.Decimal(12, 2)
+  courierFee         Decimal                 @default(0) @db.Decimal(12, 2) @map("courier_fee")
+  codFee             Decimal                 @default(0) @db.Decimal(12, 2) @map("cod_fee")
+  waCost             Decimal                 @default(0) @db.Decimal(12, 4) @map("wa_cost")
+  rtoLoss            Decimal                 @default(0) @db.Decimal(12, 2) @map("rto_loss")
+  returnShipping     Decimal                 @default(0) @db.Decimal(12, 2) @map("return_shipping")
+  netProfit          Decimal                 @db.Decimal(12, 2) @map("net_profit")
+  margin             Decimal?                @db.Decimal(5, 2)
+  recognitionMode    RevenueRecognitionMode  @default(cash_basis) @map("recognition_mode")
+  recognizedAt       DateTime?               @map("recognized_at")
+  createdAt          DateTime                @default(now()) @map("created_at")
+  updatedAt          DateTime                @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, recognizedAt])
+  @@map("financials")
+}
+
+model CourierStatement {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  courierType     CourierType @map("courier_type")
+  accountName     String?  @map("account_name")
+  invoiceDate     DateTime @map("invoice_date")
+  referenceNumber String?  @map("reference_number")
+  totalShipments  Int      @default(0) @map("total_shipments")
+  totalAmount     Decimal  @default(0) @db.Decimal(14, 2) @map("total_amount")
+  serviceCharges  Decimal  @default(0) @db.Decimal(12, 2) @map("service_charges")
+  salesTax        Decimal  @default(0) @db.Decimal(12, 2) @map("sales_tax")
+  withholdingTax  Decimal  @default(0) @db.Decimal(12, 2) @map("withholding_tax")
+  netPayable      Decimal  @default(0) @db.Decimal(14, 2) @map("net_payable")
+  status          String   @default("pending") // pending | paid
+  pdfUrl          String?  @map("pdf_url")
+  emailedAt       DateTime? @map("emailed_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  tenant Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rows   CourierStatementRow[]
+
+  @@index([tenantId, courierType])
+  @@map("courier_statements")
+}
+
+model CourierStatementRow {
+  id          String   @id @default(cuid())
+  statementId String   @map("statement_id")
+  orderId     String?  @map("order_id")
+  cnNumber    String   @map("cn_number")
+  date        DateTime
+  origin      String?
+  destination String?
+  weight      Decimal? @db.Decimal(10, 3)
+  status      String?
+  amount      Decimal  @default(0) @db.Decimal(12, 2)
+  charges     Decimal  @default(0) @db.Decimal(12, 2)
+
+  statement CourierStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  order     Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([statementId])
+  @@map("courier_statement_rows")
+}
+
+model Remittance {
+  id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id")
+  courierType   CourierType @map("courier_type")
+  filename      String?
+  uploadDate    DateTime @default(now()) @map("upload_date")
+  totalRows     Int      @default(0) @map("total_rows")
+  matched       Int      @default(0)
+  discrepancy   Int      @default(0)
+  missing       Int      @default(0)
+  unknown       Int      @default(0)
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rows   RemittanceRow[]
+
+  @@index([tenantId, courierType])
+  @@map("remittances")
+}
+
+model RemittanceRow {
+  id                 String   @id @default(cuid())
+  remittanceId       String   @map("remittance_id")
+  trackingNumber     String   @map("tracking_number")
+  amount             Decimal  @db.Decimal(12, 2)
+  orderId            String?  @map("order_id")
+  matchStatus        String   @map("match_status") // matched | discrepancy | missing | unknown
+  discrepancyAmount  Decimal? @db.Decimal(12, 2) @map("discrepancy_amount")
+
+  remittance Remittance @relation(fields: [remittanceId], references: [id], onDelete: Cascade)
+  order      Order?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([remittanceId])
+  @@map("remittance_rows")
+}
+
+// ===========================================================
+// DISPATCH DOCUMENTS
+// ===========================================================
+
+model LoadSheet {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  courierConfigId String   @map("courier_config_id")
+  batchDate       DateTime @map("batch_date")
+  totalOrders     Int      @default(0) @map("total_orders")
+  totalWeight     Decimal? @db.Decimal(10, 3) @map("total_weight")
+  totalCod        Decimal  @default(0) @db.Decimal(14, 2) @map("total_cod")
+  pdfUrl          String?  @map("pdf_url")
+  signedCopyUrl   String?  @map("signed_copy_url")
+  status          String   @default("generated") // generated | handed_over | signed
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  courierConfig CourierConfig    @relation(fields: [courierConfigId], references: [id])
+  orders       LoadSheetOrder[]
+
+  @@index([tenantId, batchDate])
+  @@map("load_sheets")
+}
+
+model LoadSheetOrder {
+  id          String  @id @default(cuid())
+  loadSheetId String  @map("load_sheet_id")
+  orderId     String  @map("order_id")
+  shipmentId  String? @map("shipment_id")
+
+  loadSheet LoadSheet @relation(fields: [loadSheetId], references: [id], onDelete: Cascade)
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  shipment  Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+
+  @@unique([loadSheetId, orderId])
+  @@map("load_sheet_orders")
+}
+
+model ShipperAdvice {
+  id            String      @id @default(cuid())
+  tenantId      String      @map("tenant_id")
+  courierType   CourierType @map("courier_type")
+  batchDate     DateTime    @map("batch_date")
+  totalParcels  Int         @default(0) @map("total_parcels")
+  pdfUrl        String?     @map("pdf_url")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, courierType, batchDate])
+  @@map("shipper_advice")
+}
+
+model Picklist {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  batchDate       DateTime @map("batch_date")
+  totalOrders     Int      @default(0) @map("total_orders")
+  totalItems      Int      @default(0) @map("total_items")
+  picklistPdfUrl  String?  @map("picklist_pdf_url")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items        PicklistItem[]
+  packingSlips PackingSlip[]
+
+  @@index([tenantId, batchDate])
+  @@map("picklists")
+}
+
+model PicklistItem {
+  id                 String  @id @default(cuid())
+  picklistId         String  @map("picklist_id")
+  variantId          String? @map("variant_id")
+  productTitle       String  @map("product_title")
+  sku                String
+  totalQuantity      Int     @map("total_quantity")
+  warehouseLocation  String? @map("warehouse_location")
+
+  picklist Picklist        @relation(fields: [picklistId], references: [id], onDelete: Cascade)
+  variant  ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([picklistId])
+  @@map("picklist_items")
+}
+
+model PackingSlip {
+  id         String  @id @default(cuid())
+  picklistId String? @map("picklist_id")
+  orderId    String  @map("order_id")
+  pdfUrl     String? @map("pdf_url")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  picklist Picklist? @relation(fields: [picklistId], references: [id], onDelete: SetNull)
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("packing_slips")
+}
+
+// ===========================================================
+// RISK ENGINE
+// ===========================================================
+
+model RiskEngineConfig {
+  id              String           @id @default(cuid())
+  tenantId        String           @unique @map("tenant_id")
+  mode            ConfirmationMode @default(manual)
+  factorWeights   Json             @default("{}") @map("factor_weights_json")
+  otpThreshold    Int              @default(70) @map("otp_threshold")
+  csThreshold     Int              @default(80) @map("cs_threshold")
+  cancelThreshold Int              @default(95) @map("cancel_threshold")
+  noResponsePolicy String          @default("auto_cancel") @map("no_response_policy") // auto_cancel | hold_for_cs | ship_anyway
+  noResponseHours Int              @default(24) @map("no_response_hours")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("risk_engine_configs")
+}
+
+model RiskCustomRule {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  name         String
+  conditions   Json     @map("conditions_json")
+  actions      Json     @map("actions_json")
+  priority     Int      @default(100)
+  isActive     Boolean  @default(true) @map("is_active")
+  triggerCount Int      @default(0) @map("trigger_count")
+  lastRunAt    DateTime? @map("last_run_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, isActive, priority])
+  @@map("risk_custom_rules")
+}
+
+// ===========================================================
+// AUTOMATIONS
+// ===========================================================
+
+model AutomationRule {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  name        String
+  trigger     String   // order.created | order.status_changed | inventory.low | ...
+  conditions  Json     @default("[]") @map("conditions_json")
+  actions     Json     @map("actions_json")
+  isActive    Boolean  @default(true) @map("is_active")
+  runCount    Int      @default(0) @map("run_count")
+  lastRunAt   DateTime? @map("last_run_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, trigger, isActive])
+  @@map("automation_rules")
+}
+
+// ===========================================================
+// NOTIFICATIONS
+// ===========================================================
+
+model NotificationSetting {
+  id           String  @id @default(cuid())
+  tenantId     String  @map("tenant_id")
+  eventType    String  @map("event_type")
+  channelWa    Boolean @default(false) @map("channel_wa")
+  channelEmail Boolean @default(true) @map("channel_email")
+  channelInapp Boolean @default(true) @map("channel_inapp")
+  isEnabled    Boolean @default(true) @map("is_enabled")
+  quietHoursStart String? @map("quiet_hours_start")
+  quietHoursEnd   String? @map("quiet_hours_end")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, eventType])
+  @@map("notification_settings")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  eventType String   @map("event_type")
+  title     String
+  body      String?
+  orderId   String?  @map("order_id")
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order  Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, isRead, createdAt])
+  @@map("notifications")
+}
+
+// ===========================================================
+// STATUS MANAGER (admin-managed)
+// ===========================================================
+
+model OrderStatusDefinition {
+  id              String     @id @default(cuid())
+  statusKey       String     @unique @map("status_key")
+  displayName     String     @map("display_name")
+  color           String     @default("#888888")
+  type            StatusType @default(active)
+  isTerminal      Boolean    @default(false) @map("is_terminal")
+  isCancellation  Boolean    @default(false) @map("is_cancellation")
+  displayOrder    Int        @default(100) @map("display_order")
+  description     String?
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  @@map("order_status_definitions")
+}
+
+model StatusTransition {
+  id         String  @id @default(cuid())
+  fromStatus String  @map("from_status")
+  toStatus   String  @map("to_status")
+  isAllowed  Boolean @default(true) @map("is_allowed")
+
+  @@unique([fromStatus, toStatus])
+  @@map("status_transitions")
+}
+
+// ===========================================================
+// CITY ALIASES
+// ===========================================================
+
+model CityAlias {
+  id            String   @id @default(cuid())
+  canonicalName String   @unique @map("canonical_name")
+  aliases       Json     @default("[]") @map("aliases_json") // string[]
+  tier          Int      @default(1) // 1=low, 2=med, 3=high, 4=very high
+  province      String?
+  courierZone   String?  @map("courier_zone")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("city_aliases")
+}
+
+// ===========================================================
+// SUPPORT TICKETS
+// ===========================================================
+
+model SupportTicket {
+  id                  String         @id @default(cuid())
+  tenantId            String         @map("tenant_id")
+  subject             String
+  category            String         // order_issue | courier | inventory | billing | bug | feature | general
+  priority            TicketPriority @default(normal)
+  status              TicketStatus   @default(open)
+  orderId             String?        @map("order_id")
+  assignedToAdminId   String?        @map("assigned_to_admin_id")
+  assignedToUserId    String?        @map("assigned_to_user_id")
+  slaBreachAt         DateTime?      @map("sla_breach_at")
+  resolvedAt          DateTime?      @map("resolved_at")
+  closedAt            DateTime?      @map("closed_at")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order             Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  assignedToAdmin   AdminUser?        @relation("TicketAssignedAdmin", fields: [assignedToAdminId], references: [id], onDelete: SetNull)
+  assignedToUser    User?             @relation("TicketAssignedReseller", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  messages          TicketMessage[]
+  b2bConversation   B2bConversation?
+
+  @@index([tenantId, status])
+  @@index([assignedToAdminId, status])
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id              String   @id @default(cuid())
+  ticketId        String   @map("ticket_id")
+  senderType      String   @map("sender_type") // reseller_user | admin
+  senderId        String   @map("sender_id")
+  content         String
+  attachmentUrl   String?  @map("attachment_url")
+  isInternalNote  Boolean  @default(false) @map("is_internal_note")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+// ===========================================================
+// INTERNAL CHAT
+// ===========================================================
+
+model InternalChannel {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdById String   @map("created_by")
+  isPrivate   Boolean  @default(false) @map("is_private")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  createdBy AdminUser              @relation(fields: [createdById], references: [id])
+  members   InternalChannelMember[]
+  messages  InternalMessage[]
+
+  @@map("internal_channels")
+}
+
+model InternalChannelMember {
+  id        String   @id @default(cuid())
+  channelId String   @map("channel_id")
+  userId    String   @map("user_id")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  channel InternalChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    AdminUser       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@map("internal_channel_members")
+}
+
+model InternalMessage {
+  id              String   @id @default(cuid())
+  channelId       String   @map("channel_id")
+  senderId        String   @map("sender_id")
+  content         String
+  taggedOrderId   String?  @map("tagged_order_id")
+  taggedTicketId  String?  @map("tagged_ticket_id")
+  isPinned        Boolean  @default(false) @map("is_pinned")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  channel InternalChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  sender  AdminUser       @relation(fields: [senderId], references: [id])
+
+  @@index([channelId, createdAt])
+  @@map("internal_messages")
+}
+
+model InternalDirectMessage {
+  id            String   @id @default(cuid())
+  senderId      String   @map("sender_id")
+  recipientId   String   @map("recipient_id")
+  content       String
+  taggedOrderId String?  @map("tagged_order_id")
+  readAt        DateTime? @map("read_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  sender    AdminUser @relation("DmFrom", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient AdminUser @relation("DmTo", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, recipientId, createdAt])
+  @@map("internal_direct_messages")
+}
+
+// ===========================================================
+// AI
+// ===========================================================
+
+model AiConversation {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  userId    String?  @map("user_id")
+  title     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+
+  @@index([tenantId])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id              String   @id @default(cuid())
+  conversationId  String   @map("conversation_id")
+  role            String   // system | user | assistant | tool
+  content         String
+  functionCalled  String?  @map("function_called")
+  functionResult  Json?    @map("function_result")
+  tokensUsed      Int?     @map("tokens_used")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+model AiKnowledgeBase {
+  id              String   @id @default(cuid())
+  title           String
+  content         String
+  category        String?
+  embeddingVector Float[]  @map("embedding_vector")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("ai_knowledge_base")
+}
+
+// ===========================================================
+// WMS 3PL
+// ===========================================================
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  city      String?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  zones            WarehouseZone[]
+  inboundShipments InboundShipment[]
+  pickTasks        PickTask[]
+
+  @@map("warehouses")
+}
+
+model WarehouseZone {
+  id          String  @id @default(cuid())
+  warehouseId String  @map("warehouse_id")
+  zoneCode    String  @map("zone_code")
+  name        String
+
+  warehouse Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  locations WarehouseLocation[]
+
+  @@unique([warehouseId, zoneCode])
+  @@map("warehouse_zones")
+}
+
+model WarehouseLocation {
+  id      String  @id @default(cuid())
+  zoneId  String  @map("zone_id")
+  shelf   String
+  bin     String
+  barcode String  @unique
+
+  zone         WarehouseZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  skuLocations SkuLocation[]
+  pickTaskItems PickTaskItem[]
+
+  @@unique([zoneId, shelf, bin])
+  @@map("warehouse_locations")
+}
+
+model SkuLocation {
+  id         String @id @default(cuid())
+  variantId  String @map("variant_id")
+  locationId String @map("location_id")
+  quantity   Int    @default(0)
+
+  variant  ProductVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  location WarehouseLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([variantId, locationId])
+  @@map("sku_locations")
+}
+
+model InboundShipment {
+  id            String        @id @default(cuid())
+  tenantId      String        @map("tenant_id")
+  warehouseId   String        @map("warehouse_id")
+  grnNumber     String        @unique @map("grn_number")
+  status        InboundStatus @default(pending)
+  expectedAt    DateTime?     @map("expected_at")
+  receivedAt    DateTime?     @map("received_at")
+  totalExpected Int           @default(0) @map("total_expected")
+  totalReceived Int           @default(0) @map("total_received")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  warehouse Warehouse     @relation(fields: [warehouseId], references: [id])
+  items     InboundItem[]
+
+  @@index([tenantId, status])
+  @@map("inbound_shipments")
+}
+
+model InboundItem {
+  id          String  @id @default(cuid())
+  inboundId   String  @map("inbound_id")
+  variantId   String  @map("variant_id")
+  expectedQty Int     @map("expected_qty")
+  receivedQty Int     @default(0) @map("received_qty")
+  condition   String? // good | damaged | unsellable
+  photoUrl    String? @map("photo_url")
+
+  inbound InboundShipment @relation(fields: [inboundId], references: [id], onDelete: Cascade)
+  variant ProductVariant  @relation(fields: [variantId], references: [id])
+
+  @@index([inboundId])
+  @@map("inbound_items")
+}
+
+model PickTask {
+  id           String         @id @default(cuid())
+  orderId      String         @map("order_id")
+  warehouseId  String         @map("warehouse_id")
+  assignedToId String?        @map("assigned_to")
+  status       PickTaskStatus @default(pending)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  startedAt    DateTime?      @map("started_at")
+  completedAt  DateTime?      @map("completed_at")
+
+  order     Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  warehouse Warehouse      @relation(fields: [warehouseId], references: [id])
+  items     PickTaskItem[]
+
+  @@index([assignedToId, status])
+  @@map("pick_tasks")
+}
+
+model PickTaskItem {
+  id          String   @id @default(cuid())
+  taskId      String   @map("task_id")
+  variantId   String   @map("variant_id")
+  locationId  String?  @map("location_id")
+  qtyRequired Int      @map("qty_required")
+  qtyPicked   Int      @default(0) @map("qty_picked")
+  scannedAt   DateTime? @map("scanned_at")
+
+  task     PickTask           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  variant  ProductVariant     @relation(fields: [variantId], references: [id])
+  location WarehouseLocation? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@map("pick_task_items")
+}
+
+model PackTask {
+  id           String         @id @default(cuid())
+  orderId      String         @map("order_id")
+  assignedToId String?        @map("assigned_to")
+  weightKg     Decimal?       @db.Decimal(10, 3) @map("weight_kg")
+  photoUrl     String?        @map("photo_url")
+  status       PackTaskStatus @default(pending)
+  startedAt    DateTime?      @map("started_at")
+  completedAt  DateTime?      @map("completed_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([assignedToId, status])
+  @@map("pack_tasks")
+}
+
+model RtoWarehouseReceipt {
+  id            String       @id @default(cuid())
+  orderId       String       @map("order_id")
+  receivedAt    DateTime     @default(now()) @map("received_at")
+  condition     RtoCondition
+  restockedQty  Int          @default(0) @map("restocked_qty")
+  writeOffQty   Int          @default(0) @map("write_off_qty")
+  photoUrl      String?      @map("photo_url")
+  notes         String?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("rto_warehouse_receipts")
+}
+
+// ===========================================================
+// B2B COMMUNICATION
+// ===========================================================
+
+model B2bConversation {
+  id                String     @id @default(cuid())
+  tenantId          String     @map("tenant_id")
+  accountManagerId  String?    @map("account_manager_id")
+  ticketId          String?    @unique @map("ticket_id")
+  status            String     @default("open") // open | resolved
+  lastMessageAt     DateTime   @default(now()) @map("last_message_at")
+  createdAt         DateTime   @default(now()) @map("created_at")
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accountManager AdminUser?     @relation(fields: [accountManagerId], references: [id], onDelete: SetNull)
+  ticket         SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  messages       B2bMessage[]
+
+  @@index([tenantId, status])
+  @@map("b2b_conversations")
+}
+
+model B2bMessage {
+  id             String   @id @default(cuid())
+  conversationId String   @map("conversation_id")
+  senderType     String   @map("sender_type") // reseller_user | admin
+  senderId       String   @map("sender_id")
+  content        String
+  attachmentUrl  String?  @map("attachment_url")
+  sentAt         DateTime @default(now()) @map("sent_at")
+  readAt         DateTime? @map("read_at")
+
+  conversation B2bConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, sentAt])
+  @@map("b2b_messages")
+}
+
+model B2bBroadcast {
+  id              String                @id @default(cuid())
+  sentByAdminId   String                @map("sent_by")
+  audienceType    BroadcastAudienceType @default(all) @map("audience_type")
+  audienceFilter  Json?                 @map("audience_filter_json")
+  message         String
+  sentCount       Int                   @default(0) @map("sent_count")
+  sentAt          DateTime              @default(now()) @map("sent_at")
+
+  @@index([sentAt])
+  @@map("b2b_broadcasts")
+}
+
+// ===========================================================
+// PLATFORM
+// ===========================================================
+
+model PlatformConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedById String? @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_config")
+}
+
+model OosEvent {
+  id                  String    @id @default(cuid())
+  tenantId            String    @map("tenant_id")
+  storeId             String    @map("store_id")
+  variantId           String    @map("variant_id")
+  triggeredAt         DateTime  @default(now()) @map("triggered_at")
+  affectedOrdersCount Int       @default(0) @map("affected_orders_count")
+  sellerNotifiedAt    DateTime? @map("seller_notified_at")
+  adminNotifiedAt     DateTime? @map("admin_notified_at")
+  resolvedAt          DateTime? @map("resolved_at")
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store   Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, resolvedAt])
+  @@map("oos_events")
+}
+
+// ===========================================================
+// WEBHOOK IDEMPOTENCY (Shopify webhooks)
+// ===========================================================
+
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  source      String   // shopify | courier_postex | ...
+  externalId  String   @map("external_id") // header X-Shopify-Webhook-Id
+  topic       String?
+  receivedAt  DateTime @default(now()) @map("received_at")
+  processedAt DateTime? @map("processed_at")
+  error       String?
+
+  @@unique([source, externalId])
+  @@index([source, topic])
+  @@map("webhook_events")
+}
