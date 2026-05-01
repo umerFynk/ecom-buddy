@@ -123,18 +123,11 @@ const COURIER_STATUS_MAPS: Array<{ courier: CourierType; raw: string; master: st
 
 async function seedStatuses() {
   for (const def of DEFAULT_STATUSES) {
+    const { key, ...rest } = def;
     await prisma.orderStatusDefinition.upsert({
-      where: { statusKey: def.key },
-      create: { ...def, statusKey: def.key },
-      update: {
-        displayName: def.displayName,
-        color: def.color,
-        type: def.type,
-        isTerminal: def.isTerminal,
-        isCancellation: def.isCancellation,
-        displayOrder: def.displayOrder,
-        description: def.description,
-      },
+      where: { statusKey: key },
+      create: { statusKey: key, ...rest },
+      update: rest,
     });
   }
   console.log(`✓ ${DEFAULT_STATUSES.length} order status definitions`);
