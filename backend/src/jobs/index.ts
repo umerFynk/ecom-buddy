@@ -6,6 +6,7 @@ import { startInventorySyncWorker } from './workers/inventorySync.worker';
 import { startOosDigestWorker, scheduleDailyOosDigest } from './workers/oosDigest.worker';
 import { startTrackingPollWorker, scheduleTrackingPoll } from './workers/tracking.worker';
 import { startCodBatchWorker, scheduleCodBatch } from './workers/cod.worker';
+import { startReportsDigestWorker, scheduleDailyReportsDigest } from './workers/reports.worker';
 
 let workers: Worker[] = [];
 
@@ -22,11 +23,13 @@ export async function startWorkers(): Promise<void> {
     startOosDigestWorker(),
     startTrackingPollWorker(),
     startCodBatchWorker(),
+    startReportsDigestWorker(),
   ];
   await Promise.all([
     scheduleDailyOosDigest().catch((err) => logger.warn({ err }, 'daily_oos_digest_schedule_failed')),
     scheduleTrackingPoll().catch((err) => logger.warn({ err }, 'tracking_poll_schedule_failed')),
     scheduleCodBatch().catch((err) => logger.warn({ err }, 'cod_batch_schedule_failed')),
+    scheduleDailyReportsDigest().catch((err) => logger.warn({ err }, 'reports_digest_schedule_failed')),
   ]);
   logger.info({ count: workers.length }, 'workers_started');
 }

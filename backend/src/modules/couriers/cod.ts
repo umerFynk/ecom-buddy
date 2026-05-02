@@ -53,6 +53,16 @@ export async function refreshCodStatus(orderId: string): Promise<{ updated: bool
     },
   });
 
+  // Cash-basis revenue recognition fires here.
+  queueMicrotask(async () => {
+    try {
+      const { upsertFinancialForOrder } = await import('@/modules/financify/financify.service');
+      await upsertFinancialForOrder(order.id);
+    } catch {
+      /* swallow */
+    }
+  });
+
   return { updated: true, status: 'paid' };
 }
 

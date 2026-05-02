@@ -140,6 +140,25 @@ export async function changeOrderStatus(input: ChangeStatusInput) {
       });
     }
 
+    // Financial recompute on revenue-recognition-impacting transitions.
+    const FIN_TRIGGERS = new Set([
+      'confirmed', 'auto_confirmed', 'inventory_allocated', 'courier_booked',
+      'dispatched', 'in_transit', 'out_for_delivery', 'delivered',
+      'partially_delivered', 'rto_returned',
+      'cancelled_by_seller', 'cancelled_no_response', 'cancelled_fake',
+      'cancelled_by_customer', 'cancelled_by_courier',
+    ]);
+    if (FIN_TRIGGERS.has(toStatus)) {
+      queueMicrotask(async () => {
+        try {
+          const { upsertFinancialForOrder } = await import('@/modules/financify/financify.service');
+          await upsertFinancialForOrder(orderId);
+        } catch {
+          /* swallow */
+        }
+      });
+    }
+
     return updated;
   });
 }

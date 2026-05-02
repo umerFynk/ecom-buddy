@@ -28,6 +28,8 @@ import { blacklistRouter, adminBlacklistRouter } from '@/modules/blacklist/black
 import { csRouter, adminCsRouter } from '@/modules/cs/cs.routes';
 import { campaignsRouter } from '@/modules/campaigns/campaigns.routes';
 import { abandonedRouter } from '@/modules/abandoned/abandoned.routes';
+import { financifyRouter } from '@/modules/financify/financify.routes';
+import { reportsRouter } from '@/modules/reports/reports.routes';
 
 export function mountRoutes(app: Express) {
   const v1 = Router();
@@ -57,6 +59,8 @@ export function mountRoutes(app: Express) {
   v1.use('/cs', csRouter);
   v1.use('/campaigns', campaignsRouter);
   v1.use('/abandoned', abandonedRouter);
+  v1.use('/financify', financifyRouter);
+  v1.use('/reports', reportsRouter);
 
   // Shopify integration (OAuth uses JWT, webhooks use HMAC)
   v1.use('/shopify', shopifyRouter);
