@@ -140,7 +140,18 @@ async function autoConfirm(order: Order, path: ConfirmationPath, reason: string)
 
   // Allocate inventory in the background — best-effort.
   void allocateForOrder(order.id).catch((err) => logger.warn({ err, orderId: order.id }, 'allocate_failed'));
+  // For 3PL stores, also queue a pick task.
+  void maybeCreatePickTask(order.id).catch(() => {});
   return { path, outcome: 'auto_confirmed', reason };
+}
+
+async function maybeCreatePickTask(orderId: string): Promise<void> {
+  try {
+    const { createPickTaskForOrder } = await import('../wms/wms.pickPack');
+    await createPickTaskForOrder({ orderId });
+  } catch {
+    /* swallow — non-3PL stores throw or return null */
+  }
 }
 
 async function autoCancel(order: Order, path: ConfirmationPath, reason: string): Promise<ConfirmationDecision> {

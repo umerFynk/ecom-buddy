@@ -39,6 +39,7 @@ import { supportRouter, adminSupportRouter } from '@/modules/support/support.rou
 import { internalChatRouter } from '@/modules/internalChat/internalChat.routes';
 import { b2bRouter, b2bWebhookRouter } from '@/modules/b2b/b2b.routes';
 import { adminDashboardRouter } from '@/modules/admin/dashboard.routes';
+import { wmsAdminRouter, wmsResellerRouter } from '@/modules/wms/wms.routes';
 
 export function mountRoutes(app: Express) {
   const v1 = Router();
@@ -76,6 +77,7 @@ export function mountRoutes(app: Express) {
   v1.use('/ai', aiRouter);
   v1.use('/docs', docsRouter);
   v1.use('/support', supportRouter);
+  v1.use('/wms', wmsResellerRouter);
 
   // Shopify integration (OAuth uses JWT, webhooks use HMAC)
   v1.use('/shopify', shopifyRouter);
@@ -89,6 +91,7 @@ export function mountRoutes(app: Express) {
   v1.use('/admin/internal-chat', internalChatRouter);
   v1.use('/admin/b2b', b2bRouter);
   v1.use('/admin/dashboard', adminDashboardRouter);
+  v1.use('/admin/wms', wmsAdminRouter);
 
   // Public REST API (API key authenticated)
   v1.use('/public', publicRouter);
