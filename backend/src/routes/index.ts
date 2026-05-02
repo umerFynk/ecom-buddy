@@ -35,6 +35,10 @@ import { automationsRouter } from '@/modules/automations/automations.routes';
 import { webhookSubscriptionsRouter } from '@/modules/webhooks/webhooks.routes';
 import { aiRouter } from '@/modules/ai/ai.routes';
 import { docsRouter } from '@/modules/docs/docs.routes';
+import { supportRouter, adminSupportRouter } from '@/modules/support/support.routes';
+import { internalChatRouter } from '@/modules/internalChat/internalChat.routes';
+import { b2bRouter, b2bWebhookRouter } from '@/modules/b2b/b2b.routes';
+import { adminDashboardRouter } from '@/modules/admin/dashboard.routes';
 
 export function mountRoutes(app: Express) {
   const v1 = Router();
@@ -71,6 +75,7 @@ export function mountRoutes(app: Express) {
   v1.use('/webhooks/subscriptions', webhookSubscriptionsRouter);
   v1.use('/ai', aiRouter);
   v1.use('/docs', docsRouter);
+  v1.use('/support', supportRouter);
 
   // Shopify integration (OAuth uses JWT, webhooks use HMAC)
   v1.use('/shopify', shopifyRouter);
@@ -80,6 +85,10 @@ export function mountRoutes(app: Express) {
   v1.use('/admin/oos', adminOosRouter);
   v1.use('/admin/blacklist', adminBlacklistRouter);
   v1.use('/admin/cs', adminCsRouter);
+  v1.use('/admin/support', adminSupportRouter);
+  v1.use('/admin/internal-chat', internalChatRouter);
+  v1.use('/admin/b2b', b2bRouter);
+  v1.use('/admin/dashboard', adminDashboardRouter);
 
   // Public REST API (API key authenticated)
   v1.use('/public', publicRouter);
@@ -94,6 +103,9 @@ export function mountRoutes(app: Express) {
 
   // 360dialog WhatsApp webhook (regular JSON body — no HMAC at the parser level).
   app.use('/v1/webhooks/wa', waWebhookRouter);
+
+  // 360dialog B2B WhatsApp webhook (separate System 2 number, account managers).
+  app.use('/v1/webhooks/wa-b2b', b2bWebhookRouter);
 
   // Generated PDFs (Phase 3 — picklists, packing slips, load sheets, shipper advice).
   // Phase 10 will move this to Cloudflare R2 with signed URLs.
