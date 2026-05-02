@@ -247,17 +247,18 @@ export async function applyCustomRules(
 }
 
 /**
- * Phase 1 stub for AI Engine mode. Phase 2 swaps this for a GPT-4o call
- * with a structured-output schema. For now we delegate to manual scoring
- * so the surface stays the same.
+ * AI Engine mode (Confirmation Mode 3). Delegates to GPT-4o via the
+ * structured-output schema in modules/ai/ai.riskEngine.ts. That helper
+ * falls back to manual scoring if the API call fails so the pipeline
+ * never blocks on AI.
  */
 export async function scoreAi(
   order: RiskInputOrder,
   customer: RiskInputCustomer,
   snap: RiskConfigSnapshot
 ): Promise<RiskScoreBreakdown> {
-  const manual = scoreManual(order, customer, snap);
-  return { ...manual, modeUsed: 'ai_engine' };
+  const { scoreWithGpt } = await import('../ai/ai.riskEngine');
+  return scoreWithGpt(order, customer, snap);
 }
 
 export async function scoreOrder(

@@ -1683,6 +1683,37 @@ model OosEvent {
 }
 
 // ===========================================================
+// CSV IMPORTS (audit log for bulk order uploads)
+// ===========================================================
+
+enum CsvImportStatus {
+  preview
+  committed
+  cancelled
+  expired
+}
+
+model CsvImport {
+  id              String          @id @default(cuid())
+  tenantId        String          @map("tenant_id")
+  storeId         String          @map("store_id")
+  uploadedById    String          @map("uploaded_by")
+  filename        String
+  totalRows       Int             @default(0) @map("total_rows")
+  validRows       Int             @default(0) @map("valid_rows")
+  invalidRows     Int             @default(0) @map("invalid_rows")
+  committedRows   Int             @default(0) @map("committed_rows")
+  status          CsvImportStatus @default(preview)
+  previewSummary  Json?           @map("preview_summary_json")
+  errorReport     Json?           @map("error_report_json")
+  committedAt     DateTime?       @map("committed_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@map("csv_imports")
+}
+
+// ===========================================================
 // WEBHOOK IDEMPOTENCY (Shopify webhooks)
 // ===========================================================
 

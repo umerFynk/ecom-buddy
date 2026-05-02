@@ -35,6 +35,10 @@ const EnvSchema = z.object({
 
   OPENAI_API_KEY: z.string().default('stub-openai-api-key'),
   OPENAI_MODEL: z.string().default('gpt-4o'),
+
+  DIALOG360_API_BASE: z.string().default('https://waba.360dialog.io'),
+  DIALOG360_SHARED_CUSTOMER_API_KEY: z.string().default('stub-360dialog-shared-customer-key'),
+  DIALOG360_B2B_API_KEY: z.string().default('stub-360dialog-b2b-key'),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
