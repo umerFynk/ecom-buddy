@@ -1736,6 +1736,59 @@ model AutoMessageSetting {
 }
 
 // ===========================================================
+// WEBHOOK SUBSCRIPTIONS (outgoing webhooks — Public API consumers)
+// ===========================================================
+
+enum WebhookDeliveryStatus {
+  pending
+  sending
+  delivered
+  failed
+  exhausted
+}
+
+model WebhookSubscription {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  url         String
+  secret      String   // shared secret used for HMAC-SHA256 signature
+  events      String[] // event types this subscription wants
+  description String?
+  headers     Json?    // optional custom headers (e.g. internal auth)
+  isActive    Boolean  @default(true) @map("is_active")
+  lastSuccessAt DateTime? @map("last_success_at")
+  lastFailureAt DateTime? @map("last_failure_at")
+  failureCount Int     @default(0) @map("failure_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId, isActive])
+  @@map("webhook_subscriptions")
+}
+
+model WebhookDelivery {
+  id              String                @id @default(cuid())
+  subscriptionId  String                @map("subscription_id")
+  eventType       String                @map("event_type")
+  payload         Json
+  status          WebhookDeliveryStatus @default(pending)
+  attempts        Int                   @default(0)
+  responseCode    Int?                  @map("response_code")
+  responseBody    String?               @map("response_body")
+  nextRetryAt     DateTime?             @map("next_retry_at")
+  deliveredAt     DateTime?             @map("delivered_at")
+  createdAt       DateTime              @default(now()) @map("created_at")
+
+  subscription WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId, status])
+  @@index([status, nextRetryAt])
+  @@map("webhook_deliveries")
+}
+
+// ===========================================================
 // CSV IMPORTS (audit log for bulk order uploads)
 // ===========================================================
 

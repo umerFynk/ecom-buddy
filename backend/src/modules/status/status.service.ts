@@ -159,6 +159,34 @@ export async function changeOrderStatus(input: ChangeStatusInput) {
       });
     }
 
+    // Phase 6 — fire on the in-process event bus. Webhooks + automations
+    // + notifications all subscribe.
+    queueMicrotask(async () => {
+      try {
+        const { emit } = await import('@/lib/eventBus');
+        emit('order.status_changed', order.tenantId, {
+          orderId,
+          fromStatus: order.status,
+          toStatus,
+          shopifyOrderNumber: order.shopifyOrderNumber,
+        });
+        const eventByStatus: Record<string, string> = {
+          confirmed: 'order.confirmed',
+          auto_confirmed: 'order.confirmed',
+          dispatched: 'order.dispatched',
+          delivered: 'order.delivered',
+          rto_initiated: 'order.rto_initiated',
+        };
+        const specific = eventByStatus[toStatus];
+        if (specific) emit(specific as never, order.tenantId, { orderId, status: toStatus });
+        if (toStatus.startsWith('cancelled')) {
+          emit('order.cancelled', order.tenantId, { orderId, status: toStatus });
+        }
+      } catch {
+        /* swallow */
+      }
+    });
+
     return updated;
   });
 }

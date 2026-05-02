@@ -29,6 +29,7 @@ export const QUEUES = {
   COURIER_TRACKING_POLL: 'courier-tracking-poll',
   COURIER_COD_BATCH: 'courier-cod-batch',
   REPORTS_DIGEST: 'reports-digest',
+  WEBHOOK_DELIVERY: 'webhook-delivery',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];

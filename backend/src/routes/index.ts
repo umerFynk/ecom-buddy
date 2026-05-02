@@ -30,6 +30,11 @@ import { campaignsRouter } from '@/modules/campaigns/campaigns.routes';
 import { abandonedRouter } from '@/modules/abandoned/abandoned.routes';
 import { financifyRouter } from '@/modules/financify/financify.routes';
 import { reportsRouter } from '@/modules/reports/reports.routes';
+import { notificationsRouter } from '@/modules/notifications/notifications.routes';
+import { automationsRouter } from '@/modules/automations/automations.routes';
+import { webhookSubscriptionsRouter } from '@/modules/webhooks/webhooks.routes';
+import { aiRouter } from '@/modules/ai/ai.routes';
+import { docsRouter } from '@/modules/docs/docs.routes';
 
 export function mountRoutes(app: Express) {
   const v1 = Router();
@@ -61,6 +66,11 @@ export function mountRoutes(app: Express) {
   v1.use('/abandoned', abandonedRouter);
   v1.use('/financify', financifyRouter);
   v1.use('/reports', reportsRouter);
+  v1.use('/notifications', notificationsRouter);
+  v1.use('/automations', automationsRouter);
+  v1.use('/webhooks/subscriptions', webhookSubscriptionsRouter);
+  v1.use('/ai', aiRouter);
+  v1.use('/docs', docsRouter);
 
   // Shopify integration (OAuth uses JWT, webhooks use HMAC)
   v1.use('/shopify', shopifyRouter);

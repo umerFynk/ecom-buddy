@@ -7,6 +7,8 @@ import { startOosDigestWorker, scheduleDailyOosDigest } from './workers/oosDiges
 import { startTrackingPollWorker, scheduleTrackingPoll } from './workers/tracking.worker';
 import { startCodBatchWorker, scheduleCodBatch } from './workers/cod.worker';
 import { startReportsDigestWorker, scheduleDailyReportsDigest } from './workers/reports.worker';
+import { startWebhookWorker } from './workers/webhook.worker';
+import { bootEventBusSubscribers } from './eventBusBoot';
 
 let workers: Worker[] = [];
 
@@ -16,6 +18,7 @@ let workers: Worker[] = [];
  */
 export async function startWorkers(): Promise<void> {
   if (workers.length > 0) return;
+  bootEventBusSubscribers();
   workers = [
     startWaSendWorker(),
     startConfirmationTimeoutWorker(),
@@ -24,6 +27,7 @@ export async function startWorkers(): Promise<void> {
     startTrackingPollWorker(),
     startCodBatchWorker(),
     startReportsDigestWorker(),
+    startWebhookWorker(),
   ];
   await Promise.all([
     scheduleDailyOosDigest().catch((err) => logger.warn({ err }, 'daily_oos_digest_schedule_failed')),
