@@ -40,6 +40,8 @@ import { internalChatRouter } from '@/modules/internalChat/internalChat.routes';
 import { b2bRouter, b2bWebhookRouter } from '@/modules/b2b/b2b.routes';
 import { adminDashboardRouter } from '@/modules/admin/dashboard.routes';
 import { wmsAdminRouter, wmsResellerRouter } from '@/modules/wms/wms.routes';
+import { trackRouter } from '@/modules/track/track.routes';
+import { billingRouter, adminBillingRouter, stripeWebhookRouter } from '@/modules/billing/billing.routes';
 
 export function mountRoutes(app: Express) {
   const v1 = Router();
@@ -78,6 +80,8 @@ export function mountRoutes(app: Express) {
   v1.use('/docs', docsRouter);
   v1.use('/support', supportRouter);
   v1.use('/wms', wmsResellerRouter);
+  v1.use('/billing', billingRouter);
+  v1.use('/track', trackRouter);
 
   // Shopify integration (OAuth uses JWT, webhooks use HMAC)
   v1.use('/shopify', shopifyRouter);
@@ -92,6 +96,7 @@ export function mountRoutes(app: Express) {
   v1.use('/admin/b2b', b2bRouter);
   v1.use('/admin/dashboard', adminDashboardRouter);
   v1.use('/admin/wms', wmsAdminRouter);
+  v1.use('/admin/billing', adminBillingRouter);
 
   // Public REST API (API key authenticated)
   v1.use('/public', publicRouter);
@@ -109,6 +114,9 @@ export function mountRoutes(app: Express) {
 
   // 360dialog B2B WhatsApp webhook (separate System 2 number, account managers).
   app.use('/v1/webhooks/wa-b2b', b2bWebhookRouter);
+
+  // Stripe webhook (raw body parser is wired in app.ts before the JSON parser).
+  app.use('/v1/webhooks/stripe', stripeWebhookRouter);
 
   // Generated PDFs (Phase 3 — picklists, packing slips, load sheets, shipper advice).
   // Phase 10 will move this to Cloudflare R2 with signed URLs.

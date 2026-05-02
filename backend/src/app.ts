@@ -23,7 +23,9 @@ export function createApp(): Express {
 
   // Shopify webhook routes need raw body for HMAC verification — they mount
   // their own express.raw() before the JSON parser. Everything else gets JSON.
+  // Stripe webhook also needs raw body for its signature check.
   app.use('/v1/webhooks/shopify', express.raw({ type: '*/*', limit: '5mb' }));
+  app.use('/v1/webhooks/stripe', express.raw({ type: '*/*', limit: '1mb' }));
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true }));
 

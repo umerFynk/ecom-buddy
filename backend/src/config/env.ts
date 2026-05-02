@@ -59,6 +59,13 @@ const EnvSchema = z.object({
   MNX_PLATFORM_TOKEN: z.string().default('stub-mnx-token'),
   CALLCOURIER_API_BASE: z.string().default('https://api.callcourier.com.pk'),
   CALLCOURIER_PLATFORM_TOKEN: z.string().default('stub-callcourier-token'),
+
+  // Stripe billing (optional — stub keys disable real charges)
+  STRIPE_SECRET_KEY: z.string().default('stub-stripe-secret-key'),
+  STRIPE_WEBHOOK_SECRET: z.string().default('stub-stripe-webhook-secret'),
+
+  // Sentry (optional — empty disables)
+  SENTRY_DSN: z.string().optional(),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

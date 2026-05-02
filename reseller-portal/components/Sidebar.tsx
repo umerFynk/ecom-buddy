@@ -20,6 +20,8 @@ const TABS: Array<{ href: string; label: string; group?: string }> = [
   { href: '/support', label: 'Support' },
   { href: '/ai', label: 'AI Assistant' },
   { href: '/wms', label: 'WMS', group: '3PL' },
+  { href: '/billing', label: 'Billing' },
+  { href: '/onboarding', label: 'Onboarding' },
   { href: '/settings', label: 'Settings' },
 ];
 
