@@ -26,6 +26,8 @@ export const QUEUES = {
   CONFIRMATION_TIMEOUT: 'confirmation-timeout',
   INVENTORY_SHOPIFY_SYNC: 'inventory-shopify-sync',
   OOS_DIGEST: 'oos-digest',
+  COURIER_TRACKING_POLL: 'courier-tracking-poll',
+  COURIER_COD_BATCH: 'courier-cod-batch',
 } as const;
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];

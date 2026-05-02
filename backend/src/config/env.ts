@@ -39,6 +39,23 @@ const EnvSchema = z.object({
   DIALOG360_API_BASE: z.string().default('https://waba.360dialog.io'),
   DIALOG360_SHARED_CUSTOMER_API_KEY: z.string().default('stub-360dialog-shared-customer-key'),
   DIALOG360_B2B_API_KEY: z.string().default('stub-360dialog-b2b-key'),
+
+  // Courier adapters — platform-level fallback creds. Per-tenant creds live
+  // encrypted in courier_configs and override these.
+  POSTEX_API_BASE: z.string().default('https://api.postex.pk'),
+  POSTEX_PLATFORM_TOKEN: z.string().default('stub-postex-token'),
+  LEOPARDS_API_BASE: z.string().default('https://merchantapi.leopardscourier.com'),
+  LEOPARDS_PLATFORM_API_KEY: z.string().default('stub-leopards-key'),
+  LEOPARDS_PLATFORM_API_PASSWORD: z.string().default('stub-leopards-password'),
+  TRAX_API_BASE: z.string().default('https://api.trax.pk'),
+  TRAX_PLATFORM_TOKEN: z.string().default('stub-trax-token'),
+  BLUEEX_API_BASE: z.string().default('https://benapi.blue-ex.com'),
+  BLUEEX_PLATFORM_USER: z.string().default('stub-blueex-user'),
+  BLUEEX_PLATFORM_PASSWORD: z.string().default('stub-blueex-password'),
+  MNX_API_BASE: z.string().default('https://api.mnx.com.pk'),
+  MNX_PLATFORM_TOKEN: z.string().default('stub-mnx-token'),
+  CALLCOURIER_API_BASE: z.string().default('https://api.callcourier.com.pk'),
+  CALLCOURIER_PLATFORM_TOKEN: z.string().default('stub-callcourier-token'),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

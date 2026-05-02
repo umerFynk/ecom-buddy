@@ -20,6 +20,9 @@ import { publicRouter } from '@/modules/public-api/public.routes';
 import { waRouter, waWebhookRouter } from '@/modules/wa/wa.routes';
 import { confirmationRouter } from '@/modules/confirmation/confirmation.routes';
 import { csvRouter } from '@/modules/csv/csv.routes';
+import { couriersRouter } from '@/modules/couriers/couriers.routes';
+import { trackingCodRouter } from '@/modules/couriers/cod.routes';
+import { dispatchRouter, pdfStaticRouter } from '@/modules/dispatch/dispatch.routes';
 
 export function mountRoutes(app: Express) {
   const v1 = Router();
@@ -41,6 +44,9 @@ export function mountRoutes(app: Express) {
   v1.use('/api-keys', apiKeysRouter);
   v1.use('/wa', waRouter);
   v1.use('/confirmation', confirmationRouter);
+  v1.use('/couriers', couriersRouter);
+  v1.use('/couriers', trackingCodRouter);
+  v1.use('/dispatch', dispatchRouter);
 
   // Shopify integration (OAuth uses JWT, webhooks use HMAC)
   v1.use('/shopify', shopifyRouter);
@@ -62,4 +68,8 @@ export function mountRoutes(app: Express) {
 
   // 360dialog WhatsApp webhook (regular JSON body — no HMAC at the parser level).
   app.use('/v1/webhooks/wa', waWebhookRouter);
+
+  // Generated PDFs (Phase 3 — picklists, packing slips, load sheets, shipper advice).
+  // Phase 10 will move this to Cloudflare R2 with signed URLs.
+  app.use('/uploads', pdfStaticRouter);
 }

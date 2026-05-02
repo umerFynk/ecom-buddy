@@ -41,7 +41,7 @@ coverage/
 # prisma
 backend/prisma/migrations/dev.db*
 
-# uploads (local dev)
+# generated PDFs + other uploads (local dev — moved to R2 in Phase 10)
 uploads/
 tmp/
 

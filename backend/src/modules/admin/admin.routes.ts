@@ -188,7 +188,10 @@ adminRouter.post(
       create: req.body,
       update: { masterStatus: req.body.masterStatus },
     });
-    return ok(res, row);
+    // Retroactively resolve any open orders that were stuck on this raw status.
+    const { reResolveUnmapped } = await import('@/modules/couriers/statusMapping');
+    const reRes = await reResolveUnmapped(req.body.courierType, req.body.rawStatus);
+    return ok(res, { ...row, reResolved: reRes.resolved });
   })
 );
 
