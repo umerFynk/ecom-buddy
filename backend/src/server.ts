@@ -1,9 +1,11 @@
+import http from 'http';
 import { createApp } from '@/app';
 import { env } from '@/config/env';
 import { logger } from '@/lib/logger';
 import { prisma } from '@/db/prisma';
 import { startWorkers, stopWorkers } from '@/jobs';
 import { shutdownQueues } from '@/jobs/queue';
+import { attachSocketIo } from '@/modules/cs/cs.socket';
 
 async function main() {
   const app = createApp();
@@ -25,13 +27,16 @@ async function main() {
     }
   }
 
-  const server = app.listen(env.PORT, () => {
-    logger.info(`${env.APP_NAME} backend listening on http://localhost:${env.PORT}`);
+  const httpServer = http.createServer(app);
+  attachSocketIo(httpServer);
+
+  httpServer.listen(env.PORT, () => {
+    logger.info(`${env.APP_NAME} backend listening on http://localhost:${env.PORT} (with Socket.io)`);
   });
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'shutting down');
-    server.close(async () => {
+    httpServer.close(async () => {
       await stopWorkers();
       await shutdownQueues();
       await prisma.$disconnect();

@@ -23,6 +23,11 @@ import { csvRouter } from '@/modules/csv/csv.routes';
 import { couriersRouter } from '@/modules/couriers/couriers.routes';
 import { trackingCodRouter } from '@/modules/couriers/cod.routes';
 import { dispatchRouter, pdfStaticRouter } from '@/modules/dispatch/dispatch.routes';
+import { rtoRouter } from '@/modules/rto/rto.routes';
+import { blacklistRouter, adminBlacklistRouter } from '@/modules/blacklist/blacklist.routes';
+import { csRouter, adminCsRouter } from '@/modules/cs/cs.routes';
+import { campaignsRouter } from '@/modules/campaigns/campaigns.routes';
+import { abandonedRouter } from '@/modules/abandoned/abandoned.routes';
 
 export function mountRoutes(app: Express) {
   const v1 = Router();
@@ -47,6 +52,11 @@ export function mountRoutes(app: Express) {
   v1.use('/couriers', couriersRouter);
   v1.use('/couriers', trackingCodRouter);
   v1.use('/dispatch', dispatchRouter);
+  v1.use('/rto', rtoRouter);
+  v1.use('/blacklist', blacklistRouter);
+  v1.use('/cs', csRouter);
+  v1.use('/campaigns', campaignsRouter);
+  v1.use('/abandoned', abandonedRouter);
 
   // Shopify integration (OAuth uses JWT, webhooks use HMAC)
   v1.use('/shopify', shopifyRouter);
@@ -54,6 +64,8 @@ export function mountRoutes(app: Express) {
   // Admin panel routes (admin JWT)
   v1.use('/admin', adminRouter);
   v1.use('/admin/oos', adminOosRouter);
+  v1.use('/admin/blacklist', adminBlacklistRouter);
+  v1.use('/admin/cs', adminCsRouter);
 
   // Public REST API (API key authenticated)
   v1.use('/public', publicRouter);

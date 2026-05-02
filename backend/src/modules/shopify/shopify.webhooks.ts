@@ -100,7 +100,53 @@ shopifyWebhookRouter.post('/orders-create', async (req, res, next) => {
       await markProcessed(w.webhookId, 'no store for domain');
       return ok(res, { ignored: 'no store for domain' });
     }
-    await ingestOrderFromWebhook(store.id, w.bodyJson as never);
+    const order = await ingestOrderFromWebhook(store.id, w.bodyJson as never);
+    // If this order corresponds to an abandoned checkout, mark it recovered.
+    const body = w.bodyJson as { checkout_token?: string };
+    if (body.checkout_token) {
+      try {
+        const { markRecoveredFromOrder } = await import('@/modules/abandoned/abandoned.service');
+        await markRecoveredFromOrder({ tenantId: store.tenantId, checkoutToken: body.checkout_token, orderId: order.id });
+      } catch {
+        /* swallow */
+      }
+    }
+    await markProcessed(w.webhookId);
+    return ok(res, { ok: true });
+  } catch (err) {
+    await markProcessed(req.shopifyWebhook!.webhookId, (err as Error).message);
+    next(err);
+  }
+});
+
+shopifyWebhookRouter.post('/checkouts-create', async (req, res, next) => {
+  try {
+    const w = req.shopifyWebhook!;
+    const store = await findStoreByDomain(w.shopDomain);
+    if (!store) {
+      await markProcessed(w.webhookId, 'no store');
+      return ok(res, { ignored: 'no store' });
+    }
+    const { ingestAbandonedCheckout } = await import('@/modules/abandoned/abandoned.service');
+    await ingestAbandonedCheckout(store.id, w.bodyJson as never);
+    await markProcessed(w.webhookId);
+    return ok(res, { ok: true });
+  } catch (err) {
+    await markProcessed(req.shopifyWebhook!.webhookId, (err as Error).message);
+    next(err);
+  }
+});
+
+shopifyWebhookRouter.post('/checkouts-update', async (req, res, next) => {
+  try {
+    const w = req.shopifyWebhook!;
+    const store = await findStoreByDomain(w.shopDomain);
+    if (!store) {
+      await markProcessed(w.webhookId, 'no store');
+      return ok(res, { ignored: 'no store' });
+    }
+    const { ingestAbandonedCheckout } = await import('@/modules/abandoned/abandoned.service');
+    await ingestAbandonedCheckout(store.id, w.bodyJson as never);
     await markProcessed(w.webhookId);
     return ok(res, { ok: true });
   } catch (err) {

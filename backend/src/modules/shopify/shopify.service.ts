@@ -14,6 +14,8 @@ const REQUIRED_WEBHOOKS = [
   'orders/cancelled',
   'products/create',
   'products/update',
+  'checkouts/create',
+  'checkouts/update',
   'app/uninstalled',
 ];
 

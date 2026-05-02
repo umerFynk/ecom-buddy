@@ -100,7 +100,7 @@ waWebhookRouter.post(
       });
     }
 
-    // Inbound messages — persist + dispatch to confirmation handler.
+    // Inbound messages — persist + drop into CS inbox + AI/confirmation handler.
     for (const m of body.messages ?? []) {
       if (m.type !== 'text' || !m.text) continue;
       const ingested = await ingestInboundMessage({
@@ -110,8 +110,30 @@ waWebhookRouter.post(
         receivedAt: m.timestamp ? new Date(Number(m.timestamp) * 1000) : new Date(),
         system: WaSystem.customer,
       });
-      if (ingested) {
-        // Best-effort dispatch — confirmation engine swallows its own errors.
+      if (!ingested) continue;
+      try {
+        const { appendInbound } = await import('@/modules/cs/cs.service');
+        const { emitCsMessageNew } = await import('@/modules/cs/cs.socket');
+        const { handleAiCsReply } = await import('@/modules/cs/cs.ai');
+
+        const append = await appendInbound({
+          tenantId: ingested.tenantId,
+          phone: ingested.phone,
+          text: m.text.body,
+        });
+        emitCsMessageNew({
+          conversationId: append.conversation.id,
+          tenantId: ingested.tenantId,
+          message: append.message,
+        });
+        await handleAiCsReply({
+          tenantId: ingested.tenantId,
+          phone: ingested.phone,
+          conversationId: append.conversation.id,
+          inboundText: m.text.body,
+        }).catch(() => {});
+      } catch {
+        // Fallback to legacy confirmation handler if anything above fails.
         await handleInboundCustomerReply(ingested.tenantId, ingested.phone, m.text.body).catch(() => {});
       }
     }

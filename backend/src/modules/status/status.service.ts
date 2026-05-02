@@ -110,6 +110,36 @@ export async function changeOrderStatus(input: ChangeStatusInput) {
       },
     });
 
+    // Side-effects fired AFTER the transaction would be safer, but Prisma's
+    // commit is synchronous from our perspective; we hand off to the auto-msg
+    // dispatcher which queues the WA and returns immediately.
+    queueMicrotask(async () => {
+      try {
+        const { dispatchAutoMessages } = await import('@/modules/automessages/autoMessages');
+        await dispatchAutoMessages({
+          orderId,
+          fromStatus: order.status,
+          toStatus,
+          tenantId: order.tenantId,
+          storeId: order.storeId,
+        });
+      } catch {
+        /* dispatcher swallows its own errors */
+      }
+    });
+
+    // Blacklist auto-escalation runs on RTO terminal states.
+    if (toStatus === 'rto_returned' || toStatus === 'rto_initiated') {
+      queueMicrotask(async () => {
+        try {
+          const { escalateAfterRto } = await import('@/modules/blacklist/blacklist.service');
+          await escalateAfterRto(orderId);
+        } catch {
+          /* swallow */
+        }
+      });
+    }
+
     return updated;
   });
 }
